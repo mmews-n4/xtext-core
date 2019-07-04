@@ -78,7 +78,7 @@ spec:
 
     stage('Gradle Build') {
       steps {
-        sh './1-gradle-build.sh'
+        sh './1-gradle-build.sh --stacktrace'
       }
     }
     
