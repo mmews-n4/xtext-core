@@ -17,3 +17,10 @@ fi
   --refresh-dependencies \
   --continue \
   $@
+
+./gradlew \
+  generateTestLanguages \
+  -PuseJenkinsSnapshots=true \
+  -PJENKINS_URL=$JENKINS_URL \
+  --refresh-dependencies \
+  --continue
