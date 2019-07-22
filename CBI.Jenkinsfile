@@ -103,18 +103,18 @@ spec:
     success {
       archiveArtifacts artifacts: 'build/**'
       script {
-        if (TRIGGER_DOWNSTREAM_BUILD=='true') {
+        if (params.TRIGGER_DOWNSTREAM_BUILD==true) {
           DOWNSTREAM_JOBS.split(',').each {
             def downstreamUrl = new URL("${env.JENKINS_URL}/job/$it/job/${env.BRANCH_NAME}")
             def boolean downstreamJobExists = sh(script: "curl -L -s -o /dev/null -I -w '%{http_code}' ${downstreamUrl}", returnStdout: true) == "200"
             if (downstreamJobExists) {
-              build job: "$it/${env.BRANCH_NAME}", wait: false, parameters: [booleanParam(name: 'TRIGGER_DOWNSTREAM_BUILD', value: "$TRIGGER_DOWNSTREAM_BUILD")]
+              build job: "$it/${env.BRANCH_NAME}", wait: false, parameters: [booleanParam(name: 'TRIGGER_DOWNSTREAM_BUILD', value: "${params.TRIGGER_DOWNSTREAM_BUILD}")]
             }
           }
         }
       }
     }
-    changed {
+    cleanup {
       script {
         def envName = ''
         if (env.JENKINS_URL.contains('ci.eclipse.org/xtext')) {
@@ -123,19 +123,29 @@ spec:
           envName = ' (JIRO)'
         }
         
-        def curResult = currentBuild.currentResult
+        def sendNotification = true
         def color = '#00FF00'
-        if (curResult == 'SUCCESS') {
-           if (currentBuild.previousBuild != null && currentBuild.previousBuild.result != 'SUCCESS') {
-             curResult = 'FIXED'
-           }
+        def curResult = currentBuild.currentResult
+        def lastResult = 'NONE'
+        if (currentBuild.previousBuild != null) {
+          lastResult = currentBuild.previousBuild.result
+        }
+        if (lastResult == 'NONE') {
+          curResult = "NEW: ${curResult}"
+        } else if (curResult == 'SUCCESS' && lastResult == 'SUCCESS') {
+          sendNotification = false
+        } else if (curResult == 'SUCCESS' && lastResult != 'SUCCESS') {
+          curResult = 'FIXED'
         } else if (curResult == 'UNSTABLE') {
+          curResult = 'STILL FAILING (UNSTABLE)'
           color = '#FFFF00'
         } else { // FAILURE, ABORTED, NOT_BUILD
+          curResult = 'STILL FAILING'
           color = '#FF0000'
         }
-        
-        slackSend message: "${curResult}: <${env.BUILD_URL}|${env.JOB_NAME}#${env.BUILD_NUMBER}${envName}>", botUser: true, channel: 'xtext-builds', color: "${color}"
+        if (sendNotification) {
+          slackSend message: "${curResult}: <${env.BUILD_URL}|${env.JOB_NAME}#${env.BUILD_NUMBER}${envName}>", botUser: true, channel: 'xtext-builds', color: "${color}"
+        }
       }
     }
   }
